@@ -1,0 +1,734 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+### Geocoding New Properties for Parcels Geographic Infrastructure ###
+# library(dbplyr)
+library(stringr)
+library(rgdal)
+library(tidyverse)
+library(tigris)
+options(tigris_class = "sf",tigris_use_cache = T)
+
+
+
+GDrive_path <- "~/Google Drive - Northeastern/BARI Research Team Data Library/"
+# Upload previous parcels csv two most recent versions of the property assessment data
+# parcels18 <- read_csv(paste0(GDrive_path,"../../Boston Geographical Infrastructure 2018/Data/Land.Parcels.2018.csv")) 
+# propbari17 <- read_csv(paste0(GDrive_path,"Property Assessment Data/Data/Archived Data/Property Assessment 2017/PADCross.Record.2017.csv"))
+propbari18 <- read_csv("../../../Property Assessment Data/Data/PAD.wUnit.190409.csv")
+# propbari18  <- propbari18 %>%
+# 	rename(GIS_ID = parcel_num)
+    # check the difference in NAs among TLIDs to see possible rematches
+
+##SSH - 
+# propbari18 <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Property Assessment Data/Data/Archived Data/PAD.wUnit.190409.csv") # not using this. might be faulty
+
+
+propbari18 <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Property Assessment Data/Data/PAD.Record.wUnit.08072019.csv")
+
+# propbari18 <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/properties_geo_190410.csv")
+
+##SSH - 
+
+
+### Using the parcel's centroid to match to the closest street 
+### with same name
+library(rgeos)
+library(sf)
+# library(lwgeom)
+
+### Cleaning up the properties for centroids
+propbari18$PID <- as.integer(propbari18$PID)
+prop18 <- propbari18[!duplicated(propbari18$GIS_ID),] # 98906
+parcels18_shp <- st_read(dsn = "../Data/Raw parcel shapefiles from CoB", layer = "output") # downloaded from AB: https://data.boston.gov/dataset/parcels-20181
+
+##SSH - 
+parcels18_shp <- st_read(dsn = "C:/Users/ux305/Downloads/Compressed/Parcels_2018", layer = "Parcels_2018")
+##SSH - 
+
+### Finding the centroid and merging it back unto the parcel shapefile
+P18shp_centroid <- st_centroid(parcels18_shp %>%
+      st_transform(26986))
+
+### Merging the property data with the parcels shapefile and 
+### converting them to spatial objects (needed to be re=projected)
+P18shp_centroid$PID_LONG <- as.numeric(as.character(P18shp_centroid$PID_LONG))
+P18sf <- left_join(P18shp_centroid, prop18, by=c("PID_LONG"="GIS_ID"))
+a <- left_join(prop18, P18shp_centroid, by=c("GIS_ID"="PID_LONG"))
+
+P18sf$ST_NAME_SUF <- gsub("XT","EXD",P18sf$ST_NAME_SUF)
+P18sf$ST_NAME_SUF2 <- P18sf$ST_NAME_SUF
+P18sf$ST_NAME_SUF2[is.na(P18sf$ST_NAME_SUF2)] <- ""
+P18sf$FULLNAME <- str_c(P18sf$ST_NAME, P18sf$ST_NAME_SUF2, sep = " ")
+P18sf$FULLNAME <- str_trim(P18sf$FULLNAME) # trim whitespace
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "WM T MORRISSEY BL" = "WILLIAM T MORRISSEY BLVD" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "JAMES ONEILL ST" = "JAMES O'NEIL ST" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "DRYDOCK AV" = "DRY DOCK AV" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "GEN JOZEF PILSUDSKI WAY" = "PILSUDSKI WAY")
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "REV R M COSTELLO PL" = "REV ROBERT M COSTELLO PL")
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "MSGR REYNOLDS WAY" = "MONSIGNOR REYNOLDS WAY")
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "WOODDALE AV" = "WOODALE AV")
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "SURREYHILL LA" = "SURREY HILL LA" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "RINGGOLD ST" = "RINGOLD ST" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "O DONNELL TE" = "ODONNELL TE" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "GEN WM H DEVINE WY" = "DEVINE WY" )
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "HAZLETON ST" = "HAZELTON ST")
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "MORRISON ST" = "SELWYN ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "MALCOLM X BL" = "NEW DUDLEY ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "LANE PK" = "LN PARK") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ALWIN ST" = "ALWYN ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "SILVIA CT" = "SYLVIA CT") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "JESHURUN RD" = "JESHURUN ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "GARDEN COURT ST" = "GARDEN CT") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "WAYMOUNT ST" = "PARKER HILL AV") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "POND VIEW AV" = "PONDVIEW AV") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ABBY RD" = "ABBEY RD") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ALTACREST RD" = "ALTA CREST RD") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "TERAGRAM ST" = "TEREGRAM ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "JOANNE TE" = "JO ANNE TE") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "DELANY CI" = "DELANEY CT") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "BONELL TE" = "BONNEL TE") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "AVENUE LOUIS PASTEUR" = "AVE LOUIS PASTEUR") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ST A" = "A ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ANTHONY R VALENTI WY" = "TRAVERSE ST") # per BostonMap TLID matching
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ADRIAN ST" = "ADRAIN ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "UFFORD ST" = "DYER ST") # per BostonMap, this is closest
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ST PAULS AV" = "ST PAUL'S AV") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "ORGAN PARK ST" = "ORGAN PARK") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "O DONNELL SQ" = "ODONNELL SQ") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "WM CARD OCONNELL WY" = "WILLIAM CARDINAL O'CONNELL WAY") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "MARYANNA RD" = "MARY ANNA RD") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "LEFEVRE ST" = "LE FEVRE ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "CENTER PZ" = "CAMBRIDGE ST") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "YEOMAN PL" = "YEOMAN ST") # per google
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "THEODORE A GLYNN WY" = "THEODORE GLYNN WY") # per bostonmap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "RIVERBANK PL" = "RIVERBANK PL PVT WAY") # per bostonmap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "REV RICHARD A BURKE" = "REV RICHARD A BURKE ST") # per bostonmap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "JEANNE DR" = "BEECHWOOD ST") # per bostonmap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "GEN JOZEF PILSUDSKI WY" = "PILSUDSKI WY") # per bostonmap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "FIDELIS WA" = "FIDELIS WAY") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "DR MARY M BEATTY CI" = "MARY MOORE BEATTY CIR") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "CORNAUBA EXD" = "CORNAUBA ST EXD") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "AVENUE DE LAFAYETTE" = "AVE DE LAFAYETTE") # per BostonMap
+P18sf$FULLNAME <- recode(P18sf$FULLNAME, "WILLIAM E DOUCETTE SQ" = "WM E DOUCETTE SQ") # per BostonMap
+P18sf$FULLNAME <- gsub(" AV$"," AVE",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" AV "," AVE ",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" HW$"," HWY",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" WY$"," WAY",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" BL$"," BLVD",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" CI$"," CIR",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" CR$"," CRES",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" TE$"," TER",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" PZ$"," PLZ",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" PA$"," PATH",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" WH$"," WHARF",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" LA$"," LN",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(" RO$"," ROW",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("FIRST","1ST",P18sf$FULLNAME) # making changes to parcel address names to match census:
+P18sf$FULLNAME <- gsub("SECOND","2ND",P18sf$FULLNAME) 
+P18sf$FULLNAME <- gsub("THIRD","3RD",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("FOURTH","4TH",P18sf$FULLNAME) 
+P18sf$FULLNAME <- gsub("FIFTH","5TH",P18sf$FULLNAME) 
+P18sf$FULLNAME <- gsub("SIXTH","6TH",P18sf$FULLNAME) 
+P18sf$FULLNAME <- gsub("SEVENTH","7TH",P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("EIGHTH","8TH",P18sf$FULLNAME) 
+P18sf$FULLNAME <- gsub("NINTH","9TH",P18sf$FULLNAME)
+# P18sf$FULLNAME <- gsub("TENTH","10TH",P18sf$FULLNAME)
+
+
+
+P18sf$FULLNAME <- str_trim(P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub(' +',' ', P18sf$FULLNAME)
+```
+
+```{r}
+# Saina's portion
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "PW$", "PKWY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "PK$", "PARK")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CC$", "CIRCUIT")
+# P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CT$", "CIRCUIT")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "WM C KELLY SQ", "CENTRAL SQ")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "DELOS ST", "Grove Terrace")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "SEA VIEW AVE", "SEAVIEW AVE")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "MSGR P J LYDON WAY", "MSGR PATRICK J LYDON WAY")
+P18sf$FULLNAME <- gsub("^MT ","MOUNT ",P18sf$FULLNAME)
+
+# P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "MOUNT", "MT")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "DRAYTON ST", "DRAYTON AVE")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "ARBORWAY ST", "ARBORWAY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CASTLE ROCK ST", "CASTLEROCK ST")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "NAVARRE PL", "NAVARRE ST")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "WM F MCCLELLAN HWY", "WILLIAM F MCCLELLAN HWY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "ELM LAWN", "ELM LAWN ST")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "GROTTO GLEN AVE", "GROTTO GLEN RD")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "ROSEBERY", "ROSEBERRY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "JAMAICAWAY ST", "JAMAICAWAY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "MARTIN LUTHER KING JR BLVD", "MARTIN LUTHER KING BLVD")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "ROCK AVE", "ROCK AVE PRIVATE WAY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CHARLESGATE EAST", "CHARLESGATE E")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "KEYES STREET PL", "KEYES PL")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "PIERSON ST", "PEIRSON ST")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "FENWAY ST", "FENWAY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "TRUMAN PW", "TRUMAN HWY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "TALBOT PL", "TALBOT AVE")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "ORCHARD AVE", "ORCHARDHILL RD")
+## round two
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "NEWBURY ST", "NEWBURY")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "NEWBURY  ST", "NEWBURY")
+tiger17$FULLNAME <- str_replace(tiger17$FULLNAME, "NEWBURY ST", "NEWBURY")
+P18sf[98779,]$FULLNAME
+
+# Emma's portion
+# P18sf$FULLNAME  <- gsub("CHARLES STREET SOUTH","CHARLES ST S", P18sf$FULLNAME)
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CHARLES STREET SOUTH", "CHARLES ST S")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "OAK STREET WEST","OAK ST W")
+tiger17[13579,]$FULLNAME
+P18sf[40364,]$FULLNAME
+
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "SIXTEENTH ST","16TH ST")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "TE$"," TER")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "FR FRANCIS GILDAY ST","FATHER FRANCIS GILDAY ST")
+# P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CEMETERY LN","CEMETERY LA")
+# P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "CHISHOLM LN","CHISHOLM LA")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, " WEST"," W")
+P18sf$FULLNAME <- str_replace(P18sf$FULLNAME, "MSGR ","MONSIGNOR ")
+
+
+# view(P18sf[str_detect(P18sf$FULLNAME, " WY"),])
+# sum(str_detect(P18sf[!is.na(P18sf$FULLNAME),]$FULLNAME, " TE"))
+# view(P18sf[str_detect(P18sf[!is.na(P18sf$FULLNAME),]$FULLNAME, " TE"),])
+
+# a <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/streetnames.csv")
+```
+
+```{r}
+
+# P18sf$FULLNAME  <- gsub(" PK"," PARK", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" WY"," WAY", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" CI"," CIR", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" AV"," AVE", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" TE"," TER", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub("FR ","FATHER ", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" LA"," LN", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" WH"," WHARF", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub(" WEST"," W", P18sf$FULLNAME)
+# P18sf$FULLNAME  <- gsub("MSGR ","MONSIGNOR ", P18sf$FULLNAME)
+
+# Railey's portion
+# P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "PK$", "PARK")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "CHICKAMAUGA", "CHICAMAUGA")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "LAGRANGE", "LA GRANGE")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "MORTON VILLAGE", "MORTON VILLIAGE")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "CEDAR GROVE", "CEDAR GROVE ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "N BENNET CT", "N BENNETT CT")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "VAN BRUNT", "VAN BRUNT ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "WALES PL", "WALES ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "UPHAM CT", "UPHAMS CT")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "PARK VALE", "PARKVALE")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "THIRTEENTH", "13th")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "POWER HOUSE", "POWER HOUSE ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "SOLDIERS FIELD RD EXD", "SOLDIERS FIELD RD")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "STREET A", "A ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "O CONNELL", "OCONNELL")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "PORT NORFOLK", "PORT NORFOLK ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "TAFTHILL", "TAFT HILL")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "E BOUNDARY RD", "ENNEKING PKWY")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "PIE AL", "PIE ALY")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "MATIGNON", "MATIGON")
+# Courts/very small streets that are being grouped with the larger streets they are connected to 
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "RUGGLES CT", "RUGGLES ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "JUNIPER TER", "JUNIPER ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "MEYER CT", "MEYER ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "DUDLEY PL", "DUDLEY ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "NEAL CT", "SHORT ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "LOWLAND PL", "EVERETT ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "MONMOUTH SQ", "MONMOUTH ST")
+P18sf$FULLNAME<- str_replace(P18sf$FULLNAME, "FOSTER CT", "FOSTER ST")
+
+Zakhire <- P18sf
+P18sf <- Zakhire
+# Mehrnaz's portion
+
+# P18sf$FULLNAME <- gsub("BOARD AL", "BOARD ST", P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("DEDHAM LINE", "DEDHAM ST", P18sf$FULLNAME) ## done
+# P18sf$FULLNAME <- gsub("WARREN PK", "WARREN PARK", P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("HAYDN ST", "HAYDEN ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("NORTHDALE ST", "NORTHDALE RD", P18sf$FULLNAME) ## done
+
+P18sf$FULLNAME <- gsub("E BROADWAY ST", "E BROADWAY", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("BROADWAY ST", "BROADWAY", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("W BROADWAY ST", "W BROADWAY", P18sf$FULLNAME) ## done
+
+P18sf$FULLNAME <- gsub("RAILROAD RD", "RAILROAD ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("ADAMS$", "ADAMS ST", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("MOTHER JULIA RD", "MOTHER JULIAN RD", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("CHARLES RIVER DAM", "CHARLES RIVER DAM RD",P18sf$FULLNAME)  ## done & save
+P18sf$FULLNAME <- gsub("SNOW$", "SNOW ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("CHARLESGATE ST", "CHARLESGATE", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("BELMONT PL", "BELMONT ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("LOTHROP PL", "LOTHROP ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("LEAMINGTON ST", "LEAMINGTON RD", P18sf$FULLNAME)## done & save
+P18sf$FULLNAME <- gsub("NEW PICKERTS WHARF", "CENTRAL WHARF", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("BOWDOIN SQ", "BOWDOIN ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("COMMERCIAL WHARF EAST", "COMMERCIAL WHARF", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("GROVE PL", "GROVE ST", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("LEVERETT ST", "LEVERETT AVE", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("HOWE AVE", "HOWE ST", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("BRADEEN STREET FW", "BRADEEN ST", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("BAKERS AL", "BAKERS ALY", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("BATTERY WHARF ST", "BATTERY WHARF", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("PINEFIELD LN", "PINEFIELD RD", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("OAKLAND PARK", "OAKLAND PL", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("READVILLE TROTTING PARK", "READVILLE ST", P18sf$FULLNAME) ## done & save
+P18sf$FULLNAME <- gsub("^1ST ST", "E 1ST ST", P18sf$FULLNAME) ## done
+# P18sf$FULLNAME <- gsub("HESTIA PK", "HESTIA PARK", P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("^PARLEY VALE ST", "PARLEY VALE", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("^PARLEY VALE AVE", "PARLEY VALE", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("CUMMINGS HWY", "CUMMINGS ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("MASSPORT BYPASS RD", "MASSPORT HAUL RD", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("FID KENNEDY DR", "FID KENNEDY AVE", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("DRAPER RD", "DRAPER ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("GARDEN COURT CT", "GARDEN CT ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("ALPINE PL", "ALPINE ST", P18sf$FULLNAME)## done
+P18sf$FULLNAME <- gsub("HAMILTON TER", "HAMILTON PL", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("NEW DORCHESTER AVE BRIDGE", "DORCHESTER AVE", P18sf$FULLNAME) ## done & save
+P18sf$FULLNAME <- gsub("DEDHAM PARISH RD", "PARISH ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("ELLERY CT", "ELLERY ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("COLUMBUS SQ", "COLUMBUS AVE", P18sf$FULLNAME)  ## done
+
+# P18sf$FULLNAME <- gsub("COLUMBIA CIR", "COLUMBIA RD", P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("^7TH ST", "E 7TH ST", P18sf$FULLNAME) ## done
+# P18sf$FULLNAME <- gsub("RUNDEL PK", "RUNDEL PARK", P18sf$FULLNAME)
+P18sf$FULLNAME <- gsub("HICKORY AVE", "HICKORY LN", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("WOODLAND AVE", "WOODLAND RD", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("NEW NORTHERN AVE", "NORTHERN AVE", P18sf$FULLNAME)  ## done
+P18sf$FULLNAME <- gsub("HOYT PL", "HOYT ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("DEDHAM BRANCH", "DEDHAM ST", P18sf$FULLNAME) ## done
+P18sf$FULLNAME <- gsub("LAMARTINE CT", "LAMARTINE ST", P18sf$FULLNAME)## done & save
+
+```
+
+```{r}
+# flags
+
+# Mehrnaz's
+
+# MBTA (SW CORRIDOR PROJ) is not in TIGER data. There are some stations in TIGER data as "MBTA GREEN LINE TROLLEY (SUSPENDED)".
+# STADIUM WAY is not in TIGER data. On BostonMap it is near to "WESTERN AVE".
+# JOSEPH AGRI ST is not in TIGER data. On BOstonMap it is near to "MARY BOYLE WAY".
+# BALLIN PL is not in TIGER data and BostonMap. There is a street that is "BALLOU PL".
+# TEARSEN ST is not in TIGER data, properties_geo and on BostonMap
+# STREET C is not in TIGER data.
+# CITY HALL SQ is not in TIGER data.
+# AVERBUCH TER is not in TIGER data.
+# Also there is "W 7TH ST" in TIGER data. In properties_geo file, there is "SEVENTH ST".
+# NEPONSET FIELD LN is not in TIGER data. 
+# COTTING ST is not in TIGER data.
+# LORENE RD is not in TIGER data and BostonMap. But, there is street that is "LORENZO ST".
+# HARBOR SHORE DR is not in TIGER data.
+# TOBIN BRIDGE is not in TIGER data. On BostonMap it is near to "CHELSEA ST".
+# Also there is "W 7TH ST" in TIGER data. In properties_geo file, there is "SEVENTH ST".
+# NEPONSET FIELD LN is not in TIGER data. 
+# COTTING ST is not in TIGER data.
+# LORENE RD is not in TIGER data and BostonMap. But, there is street that is "LORENZO ST".
+# HARBOR SHORE DR is not in TIGER data.
+# LEGENDS WAY is not in TIGER data.
+# HAVERHILL ST is not in TIGER data.
+# AU BON PAIN WAY is not in TIGER data.
+# FANEUIL HALL SQ is not in TIGER data. On BostonMap its location is near to "STATE ST" and it includes many streets.
+# ALBERT PL is not in TIGER data. On BostonMap it is in ALVIN AVE.
+# RAINSFORD ISLAND is not in TIGER data.
+# FORT STRONG is island and not in TIGER data.
+# DILLINGHAM ST is not in TIGER data.
+# GALLUPS ISLAND is not in TIGER data.
+# SEAFOOD WAY is not in TIGER data. 
+# GEORGES ISLAND is not in TIGER data.
+# FORT POINT CHANNEL is not in TIGER data. On BostonMap its location is near to "SUMMER ST".
+# LOVELLS ISLAND is not in TIGER data, on BostonMap there is "Lovell Island Rd" near it.
+# Also, there are CUMMINGS RD and CUMMINGS AVE in TIGER data, but they are not in properties_geo file.
+# DEER ISLAND is not in TIGER data, on BostonMap there is "DEER ISLAND RD" near it.
+# LONG ISLAND is not in TIGER data, on BostonMap there is "Long Island Rd" near it.
+# SPECTACLE ISLAND is not in TIGER data.
+# THOMPSON ISLAND is not in TIGER data.
+# Also, in TIGER data there is "W 1ST ST". But, there are not in properties_geo file.
+# BEAL PL is not in TIGER data.
+# SHANAHAN PL is not in TIGER data. On BostonMap its location is in "ALBANY ST".
+# SARGENTS WHARF is not in TIGER data.
+# EDGEWORTH PL is not in TIGER data. On BostonMap its location is between "PROSPECT ST" and "TREMONT ST"
+# BOSTON UNI BRIDGE ZZ is not in TIGER data. On BostonMap is "Boston University Bridge" near to MOUNTFORT ST.
+# ST CECELIA ST is not in TIGER data. On BostonMap its location is near to "SCOTIA ST".
+# THIRTY FOOT is not in TIGER data, and on BostonMap.
+# MILTON LINE is not in TIGER data.
+# ST FRANCIS DE SALES CT is not in TIGER data. On BostonMap its location is in "BUNKER HILL ST".
+# MILTON TOWN LINE is not in TIGER data.
+# DEDHAM is not in properties_geo file, in TIGER data there are DEDHAM ST, E DEDHAM ST, W DEDHAM ST, DEDHAM PKWY. On BostonMap there is not DEDHAM LINE.
+# LOWNEY WAY is not in TIGER data.
+
+# Emma's
+
+# cnumber	ST_NAME	Comment
+# 191	JOHNRAY RD	Street does not exist in TIGER but is present on google maps
+# 192	VENDEN PL	Street does not exist in TIGER but is present on google maps
+# 193	EMERSON PL	Street does not exist in TIGER but is present on google maps
+# 194	VERNON PL	Street does not exist in TIGER but is present on google maps
+# 195	FORSTERS CT	Street exists in neither TIGER nor google maps
+# 196	MIDDLEMAS CT	Street does not exist in TIGER but is present on google maps
+# 197	JENNER ST	Street does not exist in TIGER but is present on google maps
+# 198	CHARLESStreet SOUTH	Changed
+# 199	CARNES PL	Street exists in neither TIGER nor google maps
+# 200	CRESTWOOD PK	Changed
+# 201	TOLL GATE WAY	Street exists in neither TIGER nor properties_geo
+# 202	PERRY PL	Street exists in neither TIGER nor google maps
+# 203	SANDGRAV RD	Street exists in neither TIGER nor google maps
+# 204	FIELD ST	Street does not exist in TIGER but is present on google maps
+# 205	REED TER	Street exists in neither TIGER nor properties_geo nor google maps
+# 206	HENDERSON RD	Street exists in neither TIGER nor properties_geo nor google maps
+# 207	UNION PK	Changed
+# 208	HORAN WAY	Street exists in neither TIGER nor properties_geo but is present on google maps
+# 209	BOSTON WHARF RD	Street does not exist in TIGER but is present on google maps
+# 210	W BROADWAY ST	The Suffix "ST"is ot present in TIGER$FULLNAME
+# 211	OAKStreet WEST	Changed
+# 212	BLACKFAN CIR	Street does not exist in TIGER but is present on google maps
+# 213	GREENOUGH PK	Changed
+# 214	5TH AVE	Street does not exist in TIGER but is present on google maps
+# 215	SEYMOUR RD	Street exists in neither TIGER nor properties_geo nor google maps
+# 216	SERVICE DR	Street exists in neither TIGER nor properties_geo nor google maps
+# 217	TAI TUNG ST	Street does not exist in TIGER but is present on google maps under the name TAI-TUNG ST
+# 218	BROADWAY ST	The Suffix "ST"is ot present in TIGER$FULLNAME
+# 219	BLACKSTONE SQ	Street does not exist in TIGER but is present on google maps
+# 220	E SERVICE RD	Street does not exist in TIGER but is present on google maps
+# 221	BALL ST	Street does not exist in TIGER but is present on google maps
+# 222	FEDERAL RD	Street exists in neither TIGER nor google maps
+# 223	BILLERICA ST	Street exists in neither TIGER nor google maps
+# 224	FENNER ST	Street exists in neither TIGER nor google maps
+# 225	THOMPSON PL	Street does not exist in TIGER but is present on google maps
+# 226	NEWSOME PK	Changed
+# 227	CARLSON RD	Street does not exist in TIGER but is present on google maps
+# 228	MACNEIL WAY	Street does not exist in TIGER but is present on google maps
+# 229	BEECHMONT FW	Street exists in neither TIGER nor google maps
+# 230	CODMAN PK	Changed
+# 231	THATCHER TER	Street exists in neither TIGER nor properties_geo nor google maps
+# 232	MAHLER RD	Street does not exist in TIGER but is present on google maps
+# 233	TOLAND TER	ThisStreet is present in the TIGER, not present on the google map or the properties_geo
+# 234	CHURCH AVE	Street does not exist in TIGER or properties_geo but is present on google maps
+# 235	WILKES ST	Street exists in neither TIGER nor google maps
+# 236	PROPOSED RD	Street exists in neither TIGER nor google maps
+# 237	SARGENT CW	Street exists in neither TIGER nor google maps
+# 238	GREENVILLE PK	New Name = "GREENVILLE PARK", does not exist in TIGER or google maps
+# 239	KRESSON TER	Street exists in neither TIGER nor google maps
+# 240	MOULTON WAY	Street does not exist in TIGER but is present on google maps
+# 241	SIXTEENTH ST	New Name '= "
+# 242	ROUGHAN RD	Street exists in neither TIGER nor properties_geo nor google maps
+# 243	BERAM AVE	Street exists in neither TIGER nor properties_geo nor google maps
+# 244	EDGAR ST	Street exists in neither TIGER nor properties_geo nor google maps
+# 245	KELLYS BLOCK	Street exists in neither TIGER nor properties_geo nor google maps
+# 246	BARTON ST	Street exists in neither TIGER nor properties_geo nor google maps
+# 247	THIRTY FT ST ZZ	Street exists in neither TIGER nor properties_geo nor google maps
+# 248	GROVE RD	Street exists in neither TIGER nor google maps
+# 249	RUTHVEN PK	Changed
+# 250	AGASSIZ PK	Changed
+# 251	KENMARE RD	Street does not exist in TIGER but is present on google maps
+# 252	MALIA TER	Street does not exist in TIGER but is present on google maps
+# 253	BEECHLAND CIR	Street does not exist in TIGER but is present on google maps
+# 254	MELLISH RD	Street exists in neither TIGER nor google maps
+# 255	SOBIN PK	Street does not exist in TIGER but is present on google maps
+# 256	WEBB PK	Street exists in neither TIGER nor google maps
+# 257	ROWEN CT	Street does not exist in TIGER but is present on google maps
+# 258	SOJOURNER TRUTH PL	Street exists in neither TIGER nor google maps
+# 259	ASHEVILLE ST	Street exists in neither TIGER nor google maps
+# 260	FR FRANCIS GILDAY ST	Changed
+# 261	GILLETTE PK	Changed
+# 262	HOLLAND PL	Street exists in neither TIGER nor google maps
+# 263	CEMETERY LN	Street exists in neither TIGER nor google maps
+# 264	WESTBOURNE TER	Street does not exist in TIGER but is present on google maps
+# 265	PAWNING ST	Street exists in neither TIGER nor google maps
+# 266	CHISHOLM LN	Street does not exist in TIGER but is present on google maps
+# 267	TRILLING WAY	Street does not exist in TIGER but is present on google maps
+# 268	DOUGLASS PK	Street does not exist in TIGER but is present on google maps
+# 269	LOVEJOY WHARF	Street does not exist in TIGER but is present on google maps
+# 270	PENN CENTRAL RR	Street does not exist in TIGER but is present on google maps
+# 271	CHARLESGATE WEST	Changed
+# 272	3RDStreet PL	Street exists in neither TIGER nor properties_geo nor google maps
+# 273	HARVARD PK	Changed
+# 274	CHOCORUA ST	Street exists in neither TIGER nor google maps
+# 275	LINDEN PARK ST	Street exists in neither TIGER nor google maps
+# 276	NEW HILL PL	Street does not exist in TIGER but is present on google maps
+# 277	STONY BROOK	Street exists in neither TIGER nor google maps
+# 278	MSGR REYNOLDS WAY	Changed
+# 279	SUMNER	Can not match lacks street suffix
+# 280	WEST SERVICE RD	Street exists in neither TIGER nor google maps
+# 281	HINSDALE ST	Street exists in neither TIGER nor google maps
+# 282	N GROVE ST	Street does not exist in TIGER but is present on google maps
+# 283	FALMOUTH ST	Street does not exist in TIGER but is present on google maps
+# 284	NEPONSET	Can not match lacks street suffix
+# 285	LOWNEY WAY	Street does not exist in TIGER but is present on google maps
+
+# Riley's 
+
+
+# RT <- read.csv("D:/School/Summer 2019/matching local street names of PAD and Tiger data/correctedstreets_RT.csv")
+# RT <- RT %>%
+#   filter(unmatchable == 1) # the unmatched streets + reasons for not matching
+
+# streets <- as.character(RT$FULLNAME)
+#  [1] "PROPOSED ST"              "FANEUIL HALL MARKETPLACE" "WASHINGTON MA"            "HANSFORD ST"             
+#  [5] "IVES ST"                  "OSGOOD CT"                "CROSBY PL"                "ROUGEMONT PL"            
+#  [9] "BLOCK ST"                 "BUSSEY PL"                "DAKOTA TER"               "MAITLAND ST"             
+# [13] "CEMETERY RD ISLAND"       "GREENS BLOCK"             "PASSAGEWAY ST"            "PAYSON RD"               
+# [17] "AMORET RD"                "EAGLE PASS ZZ"            "BISHOP JOE L SMITH WAY"   "LEXINGTON PL"            
+# [21] "CAREY ST"                 "WELLAND RD"               "CHELSEA CREEK"            "PUTNAM SQ"               
+# [25] "GILLESPIES LN"            "MALBON PL"                "DYER CT"                  "JFK EXPRESS WAY"         
+# [29] "MILLICENT WAY"            "CONSTITUTION PLZ"         "PERCY ST"                 "PEOPLES BAPTIST PL"      
+# [33] "CHARLES RIVER"            "RANDALL ST"               "EDGEWAY TER"              "AUSTIN AVE"              
+# [37] "STAR ST"                  "JIMMY FUND WAY"           "HORTON ST"                "COMMERCIAL CT"           
+# [41] "CEDAR AVE"                "GOODRIDGE CT"  
+
+```
+
+```{r}
+
+## Dan - 
+# The offending TLID in 2019 is 85701050
+View(prop18[prop18$TLID==85701050 & !is.na(prop18$TLID),])
+unique(prop18$ST_NAME[prop18$TLID==85701050 & !is.na(prop18$TLID)]) #length == 401
+
+View(tiger17[grepl('MC',tiger17$FULLNAME),])
+# added at end of subs: 
+  P18sf$FULLNAME <- gsub("^MT ","MOUNT ",P18sf$FULLNAME)
+# added after import of tiger17 in order to create consistency of ST/SAINT, which is tricky. All properties, though, are ST:
+tiger17$FULLNAME <- gsub("^SAINT ","ST ",tiger17$FULLNAME)
+# Those two fixes get us down to 382.
+
+length(unique(P18sf$FULLNAME[!P18sf$FULLNAME %in% tiger17$FULLNAME]))
+
+
+## SSH -
+tiger17_suffolk <- st_read("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2018/Other/tl_2017_25025_addrfeat", layer = "tl_2017_25025_addrfeat")
+
+## SSH -
+
+tiger17_suffolk <- st_read("../../Boston Geographical Infrastructure 2018/Other/tl_2017_25025_addrfeat",layer = "tl_2017_25025_addrfeat")
+tiger17 <- st_as_sf(tiger17_suffolk)
+tiger17 <- st_transform(tiger17, 26986)
+tiger17$FULLNAME <- toupper(as.character(tiger17$FULLNAME)) # this was needed
+
+
+
+
+# grep("doucette",tiger17$FULLNAME,ignore.case = T, value=T)
+# grep("REYNOLDS",sample_P18sfNA$FULLNAME,ignore.case = T, value=T)
+# plot_sf(st_geometry(sample_P18sfNA %>% filter(FULLNAME=="MORRISON ST")),col="red",cex=3)
+
+## Still missing from TIGER data these roads:
+##   Note: many of these are roads with institutions (such as schools, churches, or 
+##   city facilities) that have internal roads unmarked in/absent from Census TL data
+# All islands/rivers
+# WESTON ST not on BostonMap
+# WM C KELLY SQ not on Google
+# DELOS ST not on google
+# NORTHAM PK not on google
+# JESHURUN RD -> JESHURUN ST on BostonMap, but not in Census data. TLID = 85729003 or 85741920
+# BEECHMONT FW not on google
+# SALERNO PL not on BostonMap - closest to Webb Park but different
+# NEAL CT not on BostonMap - closest to Short St Pl but different
+# BOSTON WHARF RD on BostonMap, but not in Census data - TLID = 85734734
+# BONNELL TER is BONNEL TER on BostonMap, but not in Census data - TLID = 85721539
+# BILLERICA ST not on google
+# SOBIN PK not on BostonMap, closest to Baldwin Pl (TLID = 85721733)
+# SARGENT CW on BostonMap, but not in Census data - TLID = 85741875 or 85727438
+# HAUL RD on BostonMap as unnamed Rd with TLID = 85734490 or 85734489, but not in Census data
+# DEDHAM PARISH RD not on google
+# CHICKAMAUGA PK not on google
+# ANTHONY R VALENTI WAY on BostonMap as Anthony Rip Valenti Way (TLID = 85709755 or 637979002 or 85709762)
+# TRILLING WAY not on BostonMap - basically part of Silver Line Way
+# ROUGEMONT PL not on google
+# PASSAGEWAY ST = Passage Way per google, but not on BostonMap. Closest is Anita Ter, TLID = 85723881
+# MILLICENT WAY not on BostonMap
+# MAITLAND ST on BostonMap but not in Census data - TLID = 85741887
+# JFK EXPRESS WAY not on google
+# FALL RD not on google
+# ARNOLD PL not on google
+# SEAFOOD WAY not on google
+# SANDGRAV RD not on google
+# MOTHER BROOK not on google in boston
+# MELLISH RD not on google
+# COTTING ST not on google in boston
+# CONLEY ST on BostonMap but not in Census data (TLID = 85731220)
+# BOARD AL not on google
+# BABBITT ST on BostonMap but not in census data (TLID = 85696752)
+# AMORET RD not on google
+# VENICE ST not on google
+# RANDALL ST not on BostonMap
+# PEVEAR PL on BostonMap but not in Census data (TLID = 85700531 or 85700537)
+# MIDDLEMAS CT not on google
+# LOWLAND PL on BostonMap with no name (TLID = 85734913) but not in Census data
+# LORENE RD not on google
+# FREDONIA ST not on BostonMap
+# FALMOUTH ST not on BostonMap
+# EDGEWAY TER not on google
+# EAGLE PASS ZZ not on google
+# DILLINGHAM ST not on google
+# CENTOLA ST on BostonMap with no name (TLID = 85741545) but not in Census data
+# BEAL PL not on google
+# BARTON ST not on google
+# BALL ST not on BostonMap
+# BACK ST on BostonMap (TLID = 638524316) but not in Census data
+# WILKES ST not on google
+
+## running all parcels through matching:
+## Note: takes ~ 23 minutes to run this loop
+start1 <- Sys.time()
+pb <- progress_estimated(nrow(P18sf),0)
+
+P18sf$TLID <- NA
+
+for(i in 1:nrow(P18sf)){
+  # i = 12
+      matching_streets <- tiger17 %>%
+            filter(FULLNAME %in% P18sf$FULLNAME[i])
+      
+      if(nrow(matching_streets)>0){
+            P18sf$TLID[i] <- as.character(matching_streets$TLID[which.min(st_distance(P18sf[i,"geometry"], matching_streets))])
+      }
+      # pb$tick()$print() # update progress bar
+      
+}
+
+# 241  3030 55930 56127 74437 74525 75167 85383 85618
+
+end1 <- Sys.time()
+end1-start1 # 27 minutes
+sum(is.na(P18sf$TLID))/nrow(P18sf) # 0% missing ## 1.4 %
+
+table(P18sf$FULLNAME[which(is.na(P18sf$TLID))]) %>% sort() # should be empty
+# P18sf[which(is.na(P18sf$TLID) & P18sf$FULLNAME=="ABBY RD"),]
+
+length(unique(P18sf$FULLNAME[which(is.na(P18sf$TLID) & grepl("ISLAND",P18sf$FULLNAME)==F)])) # 211
+nrow(unique(P18sf[which(is.na(P18sf$TLID) & grepl("ISLAND",P18sf$FULLNAME)==F),])) # 1239
+
+
+blocks <- tigris::blocks(state = "MA",county = "Suffolk",year = 2016)
+blocks <- st_as_sf(blocks)
+blocks <- st_transform(blocks,26986)
+blocks$Blk_ID_10 <- blocks$GEOID10
+blocks$CT_ID_10 <- str_sub(blocks$GEOID10,end = 11)
+blocks <- blocks %>% 
+	select(Blk_ID_10,CT_ID_10)
+
+bgs <- tigris::block_groups(state = "MA",county = "Suffolk",year = 2016)
+bgs <- st_as_sf(bgs)
+bgs <- st_transform(bgs,26986)
+bgs$BG_ID_10 <- bgs$GEOID
+bgs <- bgs %>% 
+	select(BG_ID_10)
+
+P18sf_geo <- st_join(P18sf,blocks,join=st_within,left=T)
+P18sf_geo <- st_join(P18sf_geo,bgs,join=st_within,left=T)
+
+sum(is.na(P18sf_geo$Blk_ID_10))/nrow(P18sf_geo) # 0.00024
+sum(is.na(P18sf_geo$BG_ID_10))/nrow(P18sf_geo) # 0.00026
+sum(is.na(P18sf_geo$CT_ID_10))/nrow(P18sf_geo) # 0.00024
+
+P18sf_geo <- st_transform(P18sf_geo,4326)
+P18sf_geo$X <- st_coordinates(P18sf_geo)[,1]
+P18sf_geo$Y <- st_coordinates(P18sf_geo)[,2]
+
+write_csv(as.data.frame(st_set_geometry(P18sf_geo,NULL)),"C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/parcels_updatedTLID_220710.csv")
+
+# P18sf_geo <- read.csv("../Data/parcels_updatedTLID_190410.csv",stringsAsFactors = F)
+# P18sf$TLID <- P18sf_geo$TLID[match(P18sf$PID_LONG,P18sf_geo$PID_LONG)]
+# P18sf$Blk_ID_10 <- P18sf_geo$Blk_ID_10[match(P18sf$PID_LONG,P18sf_geo$PID_LONG)]
+# P18sf$BG_ID_10 <- P18sf_geo$BG_ID_10[match(P18sf$PID_LONG,P18sf_geo$PID_LONG)]
+# P18sf$CT_ID_10 <- P18sf_geo$CT_ID_10[match(P18sf$PID_LONG,P18sf_geo$PID_LONG)]
+# P18sf_geo <- P18sf
+
+save(P18sf_geo,file = "../Data/parcels_updatedTLID_sf.RData")
+# load(file = "../Data/Geographical Infrastructure 2018/Data/parcels_updatedTLID_sf.RData")
+
+```
+
+```{r}
+parcels18_shp <- st_read(dsn = "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/Raw parcel shapefiles from CoB", layer = "output")
+
+P18sf <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/parcels_updatedTLID_220710.csv")
+
+p18 <- st_as_sf(P18sf, coords = c("X", "Y"), crs = 26986)
+
+TLID_NA <- P18shp_centroid%>%
+ filter(PID_LONG %in% p18$PID_LONG[is.na(p18$TLID)]) 
+# %>%
+#  head(n = 20)
+
+# 
+# TLID_NA <- st_join(TLID_NA, p18[,"ZIPCODE"],join=st_within,left=T)
+# 
+# TLID_NA <- p18[(is.na(p18$TLID)),]
+# # TLID_NA <- head(TLID_NA, 3)
+# 
+# # p18 <- st_as_sf(P18sf, coords = c("X", "Y"), crs = 26986)
+
+# TLID_NA <- st_transform(TLID_NA, 26986)
+
+# tiger17$zip <- ifelse(is.na(tiger17$ZIPL), as.character(tiger17$ZIPR), as.character(tiger17$ZIPL))
+# tiger17$zip <- as.numeric(tiger17$zip)
+
+pb <- progress_estimated(nrow(TLID_NA),0)
+
+
+TLID_NA$TLID <- NA
+TLID_NA$dist <- NA
+
+# p18_sub <- p18[(is.na(p18$TLID)),]
+# 
+# nonmatching <- p18_sub %>%
+#   filter(!(FULLNAME %in% tiger17$FULLNAME))
+
+# nonmatching_streets <- tiger17 %>%
+  # filter(zip %in% p18_sub$ZIPCODE)
+
+# TLID_NA <- head(TLID_NA, 3)
+
+for (i in 1:nrow(TLID_NA)) {
+  # nonmatching_streets <- tiger17 %>%
+  #           filter(zip %in% TLID_NA$ZIPCODE[i])
+  # if(nrow(nonmatching_streets)>0) {
+      temp <-st_distance(TLID_NA[i,"geometry"], tiger17, by_element = TRUE)
+   TLID_NA$TLID[i] <- as.character(tiger17$TLID[which.min(temp)])
+   TLID_NA$dist[i] <- min(temp)
+    # }
+  # pb$tick()$print()
+}
+
+
+write.csv(TLID_NA, "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/TLIDs_190713.csv") # all dist
+hist(TLID_NA$dist)
+
+sum(TLID_NA$dist < 50)
+View(TLID_NA[TLID_NA$dist < 50,])
+
+View(p18)
+
+TLID_new <- TLID_NA[TLID_NA$dist < 50,]
+
+dt <- left_join(as.data.frame(p18), as.data.frame(TLID_new[,c("OBJECTID", "TLID","dist")]), by = "OBJECTID")
+dt$tlid <- ifelse(!is.na(dt$dist), dt$TLID.y, dt$TLID.x)
+drops <- c("geometry.y","TLID.y", "TLID.x")
+dt <- dt[ , !(names(dt) %in% drops)]
+names(dt)[94] <- "TLID"
+names(dt)[92] <- "geometry"
+dt <- st_as_sf(dt)
+
+dt <- st_transform(dt,4326)
+dt$X <- st_coordinates(dt)[,1]
+dt$Y <- st_coordinates(dt)[,2]
+
+# write.csv(dt, "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/parcels_fullupdatedTLID_190713.csv")
+
+write.csv(as.data.frame(st_set_geometry(dt,NULL)),"C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/parcels_fullupdatedTLID_190723.csv")
+
+```
+
