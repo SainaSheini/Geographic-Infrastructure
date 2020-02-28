@@ -1,0 +1,494 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+
+GDrivepath <- "~/Google Drive/BARI Research Team Data Library/"
+setwd(paste0(GDrivepath,"Geographical Infrastructure/Boston Geographical Infrastructure 2019/Scripts"))
+
+# PAD_unit <- read_csv("../../../Property Assessment Data/Data/PAD.wUnit.190409.csv") # the new unit imputation file created with new property assessments data released in 2019
+# colnames(PAD_unit)[3] <- "GIS_ID" 
+
+PAD_unit <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Property Assessment Data/Data/PAD.Record.wUnit.07242019.csv")
+
+dim(PAD_unit) # 172841 in 2018, 174074 in 2019
+
+
+
+# prpty_to_prcl <- read_csv("../Data/PropertiesToParcels190410.csv") # 254797
+## SSH
+## Alina's new file
+newtlid <- read.csv("D:/School/Semester 7/BARI/parcels_fullupdatedTLID_190723.csv")
+### add in some variables
+newtlid$Blk_ID_10 <- MtchedTLID_2018$Blk_ID_10[match(newtlid$PID_LONG, MtchedTLID_2018$PID_LONG)]
+newtlid$CT_ID_10 <- MtchedTLID_2018$CT_ID_10[match(newtlid$PID_LONG, MtchedTLID_2018$PID_LONG)]
+newtlid$BG_ID_10 <- MtchedTLID_2018$BG_ID_10[match(newtlid$PID_LONG, MtchedTLID_2018$PID_LONG)]
+
+newtlid$BG_ID_10 <- MtchedTLID_2018$BG_ID_10[match(newtlid$PID_LONG, MtchedTLID_2018$PID_LONG)]
+
+prpty_to_prcl <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2018/Data/PropertiesToParcels20180828.csv") # 207955
+
+prpty_to_prcl19 <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/PropertiesToParcels190721.csv")
+
+# MtchedTLID <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/parcels_fullupdatedTLID_190723.csv") # 98930
+
+MtchedTLID_2018 <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2018/Data/Archived/parcels_updatedTLID_Sep28.csv") 
+
+prcl <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2018/Data/Special Parcels 2018/Parcels2018_special_20180731.csv") # 98903
+
+#SSH
+# MtchedTLID <- read_csv("../Data/parcels_updatedTLID_190410.csv") # 98930
+colnames(MtchedTLID)[colnames(MtchedTLID)=="PID_LONG"] <- "GIS_ID"
+# # MtchedTLID$GIS_ID <- as.numeric(MtchedTLID$GIS_ID)
+# 
+# prcl <- read_csv("../../Boston Geographical Infrastructure 2018/Data/Special Parcels 2018/Parcels2018_special_20180731.csv")
+
+# adding the new land parcel ID 
+# drops <- c("Land_Parcel_ID")
+# MtchedTLID <- MtchedTLID[ , !(names(MtchedTLID) %in% drops)]
+MtchedTLID$Land_Parcel_ID <- prpty_to_prcl$Land_Parcel_ID[match(MtchedTLID$GIS_ID, prpty_to_prcl$GIS_ID)]
+
+nrow(MtchedTLID)
+# [1] 98930
+length(unique(MtchedTLID$GIS_ID))
+# [1] 98902
+length(unique(MtchedTLID$Land_Parcel_ID))
+# [1] 98027
+
+
+sum(is.na(MtchedTLID$Land_Parcel_ID)) # only 158 missing
+sum(is.na(MtchedTLID$BG_ID_10)) # 26 missing
+sum(is.na(MtchedTLID$TLID)) # 228 missing
+
+MtchedTLID <- MtchedTLID %>%
+  select("GIS_ID", "TLID", "Land_Parcel_ID", "CT_ID_10", "BG_ID_10", "Blk_ID_10","X","Y")
+
+
+length(unique(MtchedTLID$GIS_ID)) # 98902
+# View(table(unique(MtchedTLID$GIS_ID)))
+# MtchedTLID <- unique(MtchedTLID[, 1:6])
+# 
+# MtchedTLID <- unique(MtchedTLID[, 1:104]) # 99992
+# 
+# sum(is.na(MtchedTLID$GIS_ID))
+# # 115
+# sum(is.na(MtchedTLID$Land_Parcel_ID))
+# # 76
+# sum(is.na(prpty_to_prcl$Land_Parcel_ID))
+# # 5
+# sum(is.na(prpty_to_prcl$GIS_ID))
+# # 156
+
+length(unique(PAD_unit$GIS_ID)) # 98906
+length(unique(prpty_to_prcl$GIS_ID)) # 98907
+
+PAD_unit$Land_Parcel_ID <- prpty_to_prcl$Land_Parcel_ID[match(PAD_unit$GIS_ID,prpty_to_prcl$GIS_ID)]
+
+
+# new <- left_join(x = PAD_unit, y = prpty_to_prcl[ , c("Land_Parcel_ID", "GIS_ID")], by= "GIS_ID", all.x=TRUE)
+new <- PAD_unit %>%
+	select(-GROSS_AREA,-LIVING_AREA) %>% # remove imputed values
+	dplyr::rename(GROSS_AREA = GROSS_AREA_org, # rename original non-imputed variables
+				 LIVING_AREA = LIVING_AREA_org)
+
+## SSH
+data_all$Land_Parcel_ID <- prpty_to_prcl$Land_Parcel_ID[match(data_all$GIS_ID,prpty_to_prcl$GIS_ID)]
+
+
+# new <- left_join(x = PAD_unit, y = prpty_to_prcl[ , c("Land_Parcel_ID", "GIS_ID")], by= "GIS_ID", all.x=TRUE)
+new <- data_all %>%
+	select(-GROSS_AREA,-LIVING_AREA) %>% # remove imputed values
+	dplyr::rename(GROSS_AREA = GROSS_AREA_org, # rename original non-imputed variables
+				 LIVING_AREA = LIVING_AREA_org)
+## SSH
+
+new <- new %>%
+  select("Land_Parcel_ID", "GIS_ID", 
+  			 "ST_NUM","ST_NAME","ST_NAME_SUF","UNIT_NUM","ZIPCODE",
+  			 "AV_TOTAL", "AV_LAND", "AV_BLDG", "LAND_SF", "GROSS_AREA", "LIVING_AREA", 
+  			 "unit_N",
+  			 "unit_N_orig", "unit_N_org" , "New_unit",
+  			 "LU",
+  			 "OWN_OCC","OWNER","MAIL_ADDRESSEE","MAIL_ADDRESS","MAIL.CS","MAIL_ZIPCODE",
+  			 "YR_BUILT","YR_REMOD",
+  			 "NUM_FLOORS","R_BLDG_STYL")
+new$OWN_OCC <- as.numeric(new$OWN_OCC=="Y")
+new$YR_REMOD[new$YR_REMOD==0] <- NA
+new$YR_BUILT[new$YR_BUILT==0] <- NA
+new$R_BLDG_STYL[new$R_BLDG_STYL==""] <- NA
+new$owner_address <- paste(new$MAIL_ADDRESS,new$MAIL.CS,new$MAIL_ZIPCODE)
+new$full_address <- paste(new$ST_NUM,new$ST_NAME,new$ST_NAME_SUF,new$UNIT_NUM,new$ZIPCODE)
+
+# new <- unique(new[, 1:10]) # 162646
+
+# new <- new %>%
+#   add_count(Land_Parcel_ID)
+
+# colnames(new)[11] <- "Property_N"
+
+
+new1 <- new %>% # self-entered unit numbers
+  filter(!is.na(unit_N_org)) %>%
+  group_by(Land_Parcel_ID) %>%
+		dplyr:: summarise(
+		AV_TOTAL = sum(AV_TOTAL,na.rm=T),
+		AV_LAND = sum(AV_LAND,na.rm=T), 
+		AV_BLDG = sum(AV_BLDG,na.rm=T), 
+		LAND_SF = sum(LAND_SF,na.rm=T), 
+		GROSS_AREA = sum(GROSS_AREA,na.rm=T),
+		LIVING_AREA = sum(LIVING_AREA,na.rm=T), 
+		OWN_OCC = max(OWN_OCC),
+		NUM_FLOORS = max(NUM_FLOORS),
+		unit_N = sum(unit_N), 
+		unit_N_orig = sum(unit_N_orig),
+		property_N = n())
+
+new2 <- new %>% # from SAM
+  filter(!is.na(New_unit)) %>%
+  group_by(Land_Parcel_ID) %>%
+	dplyr:: mutate(
+		AV_TOTAL = sum(AV_TOTAL,na.rm=T),
+		AV_LAND = sum(AV_LAND,na.rm=T), 
+		AV_BLDG = sum(AV_BLDG,na.rm=T), 
+		LAND_SF = sum(LAND_SF,na.rm=T), 
+		GROSS_AREA = sum(GROSS_AREA,na.rm=T),
+		LIVING_AREA = sum(LIVING_AREA,na.rm=T), 
+		OWN_OCC = max(OWN_OCC),
+		NUM_FLOORS = max(NUM_FLOORS),
+		unit_N = unit_N,
+		unit_N_orig = unit_N_orig,
+		property_N = n()) %>%
+    select("Land_Parcel_ID","AV_TOTAL","AV_LAND","AV_BLDG" ,"LAND_SF","GROSS_AREA","LIVING_AREA","OWN_OCC","NUM_FLOORS", "unit_N","unit_N_orig","property_N")
+
+new3 <- new %>% # imputed
+  filter(is.na(unit_N_orig)) %>%
+  group_by(Land_Parcel_ID) %>%
+	dplyr:: summarise(
+		AV_TOTAL = sum(AV_TOTAL,na.rm=T),
+		AV_LAND = sum(AV_LAND,na.rm=T), 
+		AV_BLDG = sum(AV_BLDG,na.rm=T), 
+		LAND_SF = sum(LAND_SF,na.rm=T), 
+		GROSS_AREA = sum(GROSS_AREA,na.rm=T),
+		LIVING_AREA = sum(LIVING_AREA,na.rm=T), 
+		OWN_OCC = max(OWN_OCC),
+		NUM_FLOORS = max(NUM_FLOORS),
+		unit_N = sum(unit_N),
+		unit_N_orig = sum(unit_N_orig),
+		property_N = n())
+
+new4 <- rbind(as.data.frame(new1), as.data.frame(new2), as.data.frame(new3))
+new4 <- new4[!duplicated(new4),]
+
+
+new5 <- new4 %>%
+  group_by(Land_Parcel_ID) %>%
+  dplyr:: mutate(
+		AV_TOTAL = mean(AV_TOTAL,na.rm=T),
+		AV_LAND = mean(AV_LAND,na.rm=T), 
+		AV_BLDG = mean(AV_BLDG,na.rm=T), 
+		LAND_SF = mean(LAND_SF,na.rm=T), 
+		GROSS_AREA = mean(GROSS_AREA,na.rm=T),
+		LIVING_AREA = mean(LIVING_AREA,na.rm=T), 
+		OWN_OCC = max(OWN_OCC),
+		NUM_FLOORS = max(NUM_FLOORS),
+		unit_N = max(unit_N),
+		unit_N_orig = max(unit_N_orig),
+		property_N = max(property_N)) %>%
+    select("Land_Parcel_ID","AV_TOTAL","AV_LAND","AV_BLDG" ,"LAND_SF","GROSS_AREA","LIVING_AREA","OWN_OCC","NUM_FLOORS", "unit_N","unit_N_orig","property_N")
+
+
+# new_parcels <- new %>%
+# 	group_by(Land_Parcel_ID) %>%
+# 	dplyr:: summarise(
+# 		AV_TOTAL = sum(AV_TOTAL,na.rm=T),
+# 		AV_LAND = sum(AV_LAND,na.rm=T), 
+# 		AV_BLDG = sum(AV_BLDG,na.rm=T), 
+# 		LAND_SF = sum(LAND_SF,na.rm=T), 
+# 		GROSS_AREA = sum(GROSS_AREA,na.rm=T),
+# 		LIVING_AREA = sum(LIVING_AREA,na.rm=T), 
+# 		OWN_OCC = max(OWN_OCC),
+# 		NUM_FLOORS = max(NUM_FLOORS),
+# 		unit_N = sum(unit_N), 
+# 		# unit_N_org = sum(Unit_N_org), 
+# 		property_N = n())
+new_parcels <- new5
+summary(new_parcels)
+# View(new_parcels)
+
+new_parcels <- new_parcels[!duplicated(new_parcels),]
+
+new_parcels_sp <- left_join(x = new_parcels, y = prcl[ , c("Land_Parcel_ID", "lib", "police", "fire", "bps", "private", "comcenter", "medhos", "supermkt", "parking", "vacant", "rel")], by= "Land_Parcel_ID", all.x=TRUE)
+
+
+length(unique(new_parcels_sp$Land_Parcel_ID)) # 98151
+length(unique(new$Land_Parcel_ID)) # 98151
+length(unique(PAD_unit$Land_Parcel_ID)) # 98151
+
+
+## Add back in the character vars from property data:
+start1 <- Sys.time()
+new_parcels_sp$LU <- NA
+new_parcels_sp$YR_BUILT <- NA
+new_parcels_sp$YR_REMOD <- NA
+new_parcels_sp$R_BLDG_STYL <- NA
+new_parcels_sp$owner_address <- NA
+new_parcels_sp$full_address <- NA
+pb <- progress_estimated(nrow(new_parcels_sp),0)
+for(i in 1:nrow(new_parcels_sp)){
+	# subset to this parcel in prop data:
+	this_parcel <- subset(new,Land_Parcel_ID == new_parcels_sp$Land_Parcel_ID[i])
+	new_parcels_sp$LU[i] <- names(table(this_parcel$LU)[which.max(table(this_parcel$LU))])
+	if(sum(!is.na(this_parcel$YR_BUILT))==0){
+		new_parcels_sp$YR_BUILT[i] <- NA
+	} else{
+	new_parcels_sp$YR_BUILT[i] <- as.numeric(names(table(this_parcel$YR_BUILT)[which.max(table(this_parcel$YR_BUILT))]))
+	}
+	if(sum(!is.na(this_parcel$YR_REMOD))==0){
+		new_parcels_sp$YR_REMOD[i] <- NA
+	} else{
+		new_parcels_sp$YR_REMOD[i] <- as.numeric(names(table(this_parcel$YR_REMOD)[which.max(table(this_parcel$YR_REMOD))]))
+	}
+	if(sum(!is.na(this_parcel$R_BLDG_STYL))==0){
+		new_parcels_sp$R_BLDG_STYL[i] <- NA
+	} else{
+		new_parcels_sp$R_BLDG_STYL[i] <- names(table(this_parcel$R_BLDG_STYL)[which.max(table(this_parcel$R_BLDG_STYL))])
+	}
+	new_parcels_sp$owner_address[i] <- names(table(this_parcel$owner_address)[which.max(table(this_parcel$owner_address))])
+	if("CM" %in% this_parcel$LU){
+		# if this parcel has a main condo building, take that address:
+		new_parcels_sp$full_address[i] <- this_parcel$full_address[this_parcel$LU=="CM"]
+	} else{
+		new_parcels_sp$full_address[i] <- names(table(this_parcel$full_address)[which.max(table(this_parcel$full_address))])
+	}
+	pb$tick()$print() # update progress bar
+}
+end1 <- Sys.time()
+end1-start1 # 29 minutes
+new_parcels_sp_geo <- new_parcels_sp
+new_parcels_sp_geo$TLID <- MtchedTLID$TLID[match(new_parcels_sp$Land_Parcel_ID,MtchedTLID$Land_Parcel_ID)]
+
+MtchedTLID$Blk_ID_10 <- format(MtchedTLID$Blk_ID_10, scientific = F)
+MtchedTLID$BG_ID_10 <- format(MtchedTLID$BG_ID_10, scientific = F)
+MtchedTLID$CT_ID_10 <- format(MtchedTLID$CT_ID_10, scientific = F)
+
+
+# new_parcels_sp_geo$CT_ID_10 <- MtchedTLID$CT_ID_10[match(new_parcels_sp$Land_Parcel_ID,MtchedTLID$Land_Parcel_ID)]
+# new_parcels_sp_geo$BG_ID_10 <- MtchedTLID$BG_ID_10[match(new_parcels_sp$Land_Parcel_ID,MtchedTLID$Land_Parcel_ID)]
+# new_parcels_sp_geo$Blk_ID_10 <- MtchedTLID$Blk_ID_10[match(new_parcels_sp$Land_Parcel_ID,MtchedTLID$Land_Parcel_ID)]
+
+dt <- new_parcels_sp_geo
+
+dt$CT_ID_10 <- new$CT_ID_10[match(new_parcels_sp$Land_Parcel_ID,new$Land_Parcel_ID)]
+dt$BG_ID_10 <- new$BG_ID_10[match(new_parcels_sp$Land_Parcel_ID,new$Land_Parcel_ID)]
+dt$Blk_ID_10 <- new$Blk_ID_10[match(new_parcels_sp$Land_Parcel_ID,new$Land_Parcel_ID)]
+
+MtchedTLID$X <- MtchedTLID_2018$X[match(MtchedTLID$GIS_ID,MtchedTLID_2018$PID_LONG)]
+MtchedTLID$Y <- MtchedTLID_2018$Y[match(MtchedTLID$GIS_ID,MtchedTLID_2018$PID_LONG)]
+
+# MtchedTLID$CT_ID_10 <- MtchedTLID2018$CT_ID_10[match(MtchedTLID$PID_LONG,MtchedTLID2018$PID_LONG)]
+# MtchedTLID$BG_ID_10 <- MtchedTLID2018$BG_ID_10[match(MtchedTLID$PID_LONG,MtchedTLID2018$PID_LONG)]
+# MtchedTLID$Blk_ID_10 <- MtchedTLID2018$Blk_ID_10[match(MtchedTLID$PID_LONG,MtchedTLID2018$PID_LONG)]
+
+new_parcels_sp_geo$X <- MtchedTLID$X[match(new_parcels_sp_geo$Land_Parcel_ID,MtchedTLID$Land_Parcel_ID)]
+new_parcels_sp_geo$Y <- MtchedTLID$Y[match(new_parcels_sp_geo$Land_Parcel_ID,MtchedTLID$Land_Parcel_ID)]
+
+
+sum(is.na(new_parcels_sp_geo$lib)) # 133 missing
+new_parcels_sp_geo$lib[is.na(new_parcels_sp_geo$lib)] <- 0
+new_parcels_sp_geo$police[is.na(new_parcels_sp_geo$police)] <- 0
+new_parcels_sp_geo$fire[is.na(new_parcels_sp_geo$fire)] <- 0
+new_parcels_sp_geo$bps[is.na(new_parcels_sp_geo$bps)] <- 0
+new_parcels_sp_geo$private[is.na(new_parcels_sp_geo$private)] <- 0
+new_parcels_sp_geo$comcenter[is.na(new_parcels_sp_geo$comcenter)] <- 0
+new_parcels_sp_geo$medhos[is.na(new_parcels_sp_geo$medhos)] <- 0
+new_parcels_sp_geo$supermkt[is.na(new_parcels_sp_geo$supermkt)] <- 0
+new_parcels_sp_geo$parking[is.na(new_parcels_sp_geo$parking)] <- 0
+new_parcels_sp_geo$vacant[is.na(new_parcels_sp_geo$vacant)] <- 0
+new_parcels_sp_geo$rel[is.na(new_parcels_sp_geo$rel)] <- 0
+
+
+sum(is.na(new_parcels_sp_geo$TLID)) # 318 missing
+sum(is.na(new_parcels_sp_geo$Blk_ID_10)) # 133 missing
+sum(is.na(new_parcels_sp_geo$BG_ID_10)) # 135 missing
+sum(is.na(new_parcels_sp_geo$CT_ID_10)) # 133 missing
+sum(is.na(new_parcels_sp_geo$owner_address)) # 0 missing
+
+# reorder variables:
+new_parcels_sp_geo <- new_parcels_sp_geo %>%
+	select(Land_Parcel_ID,
+				 full_address,
+				 property_N,
+				 unit_N, # wrong capitalization in documentation
+				 unit_N_orig, # wrong capitalization and name in documentation
+				 AV_LAND,
+				 AV_BLDG,
+				 AV_TOTAL,
+				 LAND_SF,
+				 GROSS_AREA,
+				 LIVING_AREA,
+				 LU,
+				 OWN_OCC,
+				 NUM_FLOORS,
+				 YR_BUILT,
+				 YR_REMOD,
+				 R_BLDG_STYL,
+				 owner_address,
+				 comcenter, # incorrect name in documentation
+				 medhos,
+				 supermkt,
+				 parking,
+				 vacant,
+				 rel,
+				 lib, # not in documentation
+				 bps, # not in documentation
+				 police, # not in documentation
+				 fire, # not in documentation
+				 private, # not in documentation
+				 X,
+				 Y,
+				 TLID,
+				 Blk_ID_10,
+				 BG_ID_10,
+				 CT_ID_10
+				 )
+
+blocks <- st_read("../Data/BostonBlocks2010/BlocksBostonBARI.shp")
+
+# "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/BostonBlockGroups2010"
+
+##SSH
+blocks <- st_read("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/BostonBlocks2010/BlocksBostonBARI.shp")
+##SSH
+
+
+new_parcels_sp_geo$Blk_ID_10 <- format(new_parcels_sp_geo$Blk_ID_10, scientific = F)
+new_parcels_sp_geo$BG_ID_10 <- format(new_parcels_sp_geo$BG_ID_10, scientific = F)
+new_parcels_sp_geo$CT_ID_10 <- format(new_parcels_sp_geo$CT_ID_10, scientific = F)
+
+
+dt$Blk_ID_10 <- format(dt$Blk_ID_10, scientific = F)
+dt$BG_ID_10 <- format(dt$BG_ID_10, scientific = F)
+dt$CT_ID_10 <- format(dt$CT_ID_10, scientific = F)
+
+dt$NSA_Name <- NA
+dt$BRA_PD <- NA
+dt$NSA_Name <- blocks$NSA_NAME[match(dt$Blk_ID_10,blocks$Blk_ID_10)]
+dt$BRA_PD <- blocks$BRA_PD[match(dt$Blk_ID_10,blocks$Blk_ID_10)]
+
+new_parcels_sp_geo$NSA_Name <- blocks$NSA_NAME[match(new_parcels_sp_geo$Blk_ID_10,blocks$Blk_ID_10)]
+new_parcels_sp_geo$BRA_PD <- blocks$BRA_PD[match(new_parcels_sp_geo$Blk_ID_10,blocks$Blk_ID_10)]
+
+write.csv(new_parcels_sp_geo, "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/Parcel_final_190726.csv", row.names = FALSE)
+
+write.csv(dt, "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/Parcel_final_190726.csv", row.names = FALSE)
+
+write_csv(new_parcels_sp_geo, "../Data/Parcel_final_190410.csv") # This gets renamed Parcels.2019.csv for Dataverse
+# new_parcels_sp_geo <- read_csv("../Data/Parcel_final_190326.csv")
+
+a <- read.csv("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/Parcel_final_190726.csv")
+
+
+MtchedTLID <- new
+names(MtchedTLID)[1] <- "GIS_ID"
+parcels_shp <- read_sf("C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/Raw parcel shapefiles from CoB/output.shp")
+
+# parcels_shp <- read_sf("../Data/Raw parcel shapefiles from CoB/output.shp")
+sum(parcels_shp$PID_LONG %in% MtchedTLID$GIS_ID)
+length(unique(parcels_shp$PID_LONG))
+parcels_shp <- parcels_shp %>%
+	dplyr:: rename(GIS_ID = PID_LONG) %>%
+	select(GIS_ID)
+parcels_shp$GIS_ID <- as.numeric(parcels_shp$GIS_ID)
+  sum(parcels_shp$GIS_ID %in% new$PID_LONG) # 98926, should be same as nrow(parcels_shp) lacks 4
+
+
+parcels_shp$Land_Parcel_ID <- MtchedTLID$Land_Parcel_ID[match(parcels_shp$GIS_ID,MtchedTLID$GIS_ID)]
+sum(is.na(parcels_shp$Land_Parcel_ID))/length(parcels_shp$Land_Parcel_ID) # only 0.0015 not matched!
+
+# st_write(parcels_shp,dsn = "../Data/BostonParcels2019/",layer = "Parcels2019",driver = "ESRI Shapefile",delete_dsn=T)
+
+
+parcels_shp <-readOGR(dsn = "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/BostonParcels15072019", layer = "Parcels2019")
+
+a <- as(parcels_shp, 'Spatial')
+
+writeOGR(a, dsn = "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/BostonParcels25072019", layer = "Parcels2019", driver = "ESRI Shapefile")
+
+# st_write(parcels_shp, dsn = "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/BostonParcels072019", layer = "Parcels2019", driver = "ESRI Shapefile", delete_dsn=T)
+
+# parcels_shp <- read_sf("../Data/BostonParcels2018/Parcels2018.shp")
+
+## Merge geographic indicators back to the properties file:
+# fixing a couple:
+new_parcels_sp_geo$BG_ID_10[new_parcels_sp_geo$Land_Parcel_ID==201831000] <- 250250406001
+new_parcels_sp_geo$BG_ID_10[new_parcels_sp_geo$Land_Parcel_ID==201831001] <- 250250406001
+
+dt$BG_ID_10[dt$Land_Parcel_ID==201831000] <- 250250406001
+dt$BG_ID_10[dt$Land_Parcel_ID==201831001] <- 250250406001
+
+new_parcels_sp_geo <- dt
+
+# adding the new land parcel ID first:
+PAD_unit <- read_csv("../../../Property Assessment Data/Data/PAD.wUnit.190409.csv") # the new unit imputation file - April 9
+# colnames(PAD_unit)[3] <- "GIS_ID" # 172841
+prpty_to_prcl <- read_csv("../Data/PropertiesToParcels190410.csv") # 249611
+PAD_unit$Land_Parcel_ID <- prpty_to_prcl$Land_Parcel_ID[match(PAD_unit$GIS_ID,prpty_to_prcl$GIS_ID)]
+
+PAD_unit$X <- new_parcels_sp_geo$X[match(PAD_unit$Land_Parcel_ID,new_parcels_sp_geo$Land_Parcel_ID)]
+PAD_unit$Y <- new_parcels_sp_geo$Y[match(PAD_unit$Land_Parcel_ID,new_parcels_sp_geo$Land_Parcel_ID)]
+PAD_unit$TLID <- new_parcels_sp_geo$TLID[match(PAD_unit$Land_Parcel_ID,new_parcels_sp_geo$Land_Parcel_ID)]
+PAD_unit$Blk_ID_10 <- new_parcels_sp_geo$Blk_ID_10[match(PAD_unit$Land_Parcel_ID,new_parcels_sp_geo$Land_Parcel_ID)]
+PAD_unit$BG_ID_10 <- new_parcels_sp_geo$BG_ID_10[match(PAD_unit$Land_Parcel_ID,new_parcels_sp_geo$Land_Parcel_ID)]
+PAD_unit$CT_ID_10 <- new_parcels_sp_geo$CT_ID_10[match(PAD_unit$Land_Parcel_ID,new_parcels_sp_geo$Land_Parcel_ID)]
+
+# reordering variables to match documentation:
+PAD_unit <- PAD_unit %>%
+	select(PID, # incorrect name in documentation
+				 CM_ID,
+				 GIS_ID,
+				 ST_NUM, ST_NAME, ST_NAME_SUF,
+				 UNIT_NUM, # missing from documentation
+				 ZIPCODE,
+				 unit_N, # wrong capitalization in documentation
+				 unit_N_orig, # wrong capitalization and name in documentation
+				 LU,
+				 OWN_OCC,
+				 YR_BUILT,
+				 YR_REMOD,
+				 LAND_SF,
+				 GROSS_AREA,
+				 NUM_FLOORS,
+				 X,
+				 Y,
+				 Land_Parcel_ID,
+				 TLID,
+				 Blk_ID_10,
+				 BG_ID_10,
+				 CT_ID_10
+				 # NSA_NAME, # not in data - final decision to leave out via Dan
+				 # BRA_PD, # not in data - final decision to leave out via Dan
+				 # still missing all the other property characteristics (e.g. R_KITCH_STYLE)...
+				 )
+
+blocks$Blk_ID_10 <- as.numeric(as.character(blocks$Blk_ID_10))
+
+drops <- c("BRA_PD", "NSA_Name", "TLID")
+PAD_unit <- PAD_unit[, ! names(PAD_unit) %in% drops]
+
+
+PAD_unit$NSA_Name <- blocks$NSA_NAME[match(PAD_unit$Blk_ID_10,blocks$Blk_ID_10)]
+PAD_unit$BRA_PD <- blocks$BRA_PD[match(PAD_unit$Blk_ID_10,blocks$Blk_ID_10)]
+
+PAD_unit$TLID <- MtchedTLID$TLID[match(PAD_unit$GIS_ID,MtchedTLID$GIS_ID)]
+
+write.csv(PAD_unit, "C:/Users/ux305/Google Drive/BARI Research Team Data Library/Geographical Infrastructure/Boston Geographical Infrastructure 2019/Data/properties_geo_190726.csv", row.names = FALSE)
+
+write_csv(PAD_unit,"../Data/properties_geo_190410.csv") # This gets renamed Properties.2019.csv for Dataverse
+# PAD_unit <- read_csv("../Data/properties_geo_190326.csv")
+```
+
+
+
